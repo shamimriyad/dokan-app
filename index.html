@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+<title>দোকান ম্যানেজমেন্ট</title>
+<meta name="theme-color" content="#1B2A4A" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+  * { font-family: 'Hind Siliguri', sans-serif; box-sizing: border-box; }
+  .display-font { font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; }
+  body { margin: 0; background: #F3ECDD; -webkit-tap-highlight-color: transparent; }
+  .ledger-card {
+    background: #FFFDF7;
+    border: 1px solid #E4D9BE;
+    box-shadow: 0 1px 0 #E4D9BE, 0 8px 20px -12px rgba(43,38,32,0.25);
+    position: relative;
+  }
+  .ledger-card::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0; width: 6px;
+    background: repeating-linear-gradient(180deg, #C0472C 0 10px, transparent 10px 20px);
+    opacity: 0.55;
+    border-radius: 4px 0 0 4px;
+  }
+  .stitch {
+    background-image: repeating-linear-gradient(90deg, #C7BB9C 0 8px, transparent 8px 16px);
+    height: 2px;
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #D8C79E; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+
+const STORAGE_KEY = "dokan-customers-v1";
+const emptyForm = { name: "", phone: "", sale: "", due: "", note: "" };
+
+function taka(n) {
+  const num = Number(n) || 0;
+  return num.toLocaleString("bn-BD");
+}
+function todayBn() {
+  const d = new Date();
+  return d.toLocaleDateString("bn-BD", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/* --- lightweight inline icons (no external icon package needed) --- */
+const Icon = ({ children, size = 16, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+const IPlus = (p) => <Icon {...p}><path d="M12 5v14M5 12h14"/></Icon>;
+const ISearch = (p) => <Icon {...p}><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></Icon>;
+const ITrash = (p) => <Icon {...p}><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></Icon>;
+const IPencil = (p) => <Icon {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></Icon>;
+const IWallet = (p) => <Icon {...p}><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 12h.01"/><path d="M2 10h20"/></Icon>;
+const IUsers = (p) => <Icon {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>;
+const IBanknote = (p) => <Icon {...p}><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></Icon>;
+const IX = (p) => <Icon {...p}><path d="M18 6 6 18"/><path d="M6 6l12 12"/></Icon>;
+const ICheck = (p) => <Icon {...p}><path d="M20 6 9 17l-5-5"/></Icon>;
+const IPhone = (p) => <Icon {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"/></Icon>;
+const IReceipt = (p) => <Icon {...p}><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2Z"/><path d="M8 8h8M8 12h8M8 16h5"/></Icon>;
+const IBadgeCheck = (p) => <Icon {...p}><path d="M12 2l2.4 1.2 2.6-.4 1.4 2.2 2.2 1.4-.4 2.6L21.4 12l-1.2 2.4.4 2.6-2.2 1.4-1.4 2.2-2.6-.4L12 22l-2.4-1.2-2.6.4-1.4-2.2-2.2-1.4.4-2.6L2.6 12l1.2-2.4-.4-2.6 2.2-1.4 1.4-2.2 2.6.4Z"/><path d="M9 12l2 2 4-4"/></Icon>;
+
+function DokanManagement() {
+  const [customers, setCustomers] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [settleId, setSettleId] = useState(null);
+  const [settleAmount, setSettleAmount] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setCustomers(JSON.parse(raw));
+    } catch (e) {}
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(customers)); } catch (e) {}
+  }, [customers, loaded]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 2200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const totals = useMemo(() => {
+    const totalSale = customers.reduce((s, c) => s + (Number(c.sale) || 0), 0);
+    const totalDue = customers.reduce((s, c) => s + (Number(c.due) || 0), 0);
+    return { totalSale, totalDue, count: customers.length };
+  }, [customers]);
+
+  const filtered = useMemo(() => {
+    let list = customers;
+    if (filter === "due") list = list.filter((c) => Number(c.due) > 0);
+    if (filter === "clear") list = list.filter((c) => Number(c.due) <= 0);
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q));
+    }
+    return [...list].sort((a, b) => b.createdAt - a.createdAt);
+  }, [customers, filter, query]);
+
+  function openAddForm() { setForm(emptyForm); setEditingId(null); setShowForm(true); }
+  function openEditForm(c) {
+    setForm({ name: c.name, phone: c.phone || "", sale: String(c.sale), due: String(c.due), note: c.note || "" });
+    setEditingId(c.id); setShowForm(true);
+  }
+  function saveForm() {
+    if (!form.name.trim()) return;
+    if (editingId) {
+      setCustomers((prev) => prev.map((c) => c.id === editingId
+        ? { ...c, name: form.name.trim(), phone: form.phone.trim(), sale: Number(form.sale) || 0, due: Number(form.due) || 0, note: form.note.trim() }
+        : c));
+      setToast("তথ্য হালনাগাদ হয়েছে");
+    } else {
+      const entry = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name: form.name.trim(), phone: form.phone.trim(),
+        sale: Number(form.sale) || 0, due: Number(form.due) || 0,
+        note: form.note.trim(), createdAt: Date.now(),
+      };
+      setCustomers((prev) => [entry, ...prev]);
+      setToast("নতুন গ্রাহক যোগ হয়েছে");
+    }
+    setShowForm(false); setForm(emptyForm); setEditingId(null);
+  }
+  function deleteCustomer(id) {
+    setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setConfirmDeleteId(null); setToast("এন্ট্রি মুছে ফেলা হয়েছে");
+  }
+  function openSettle(c) { setSettleId(c.id); setSettleAmount(""); }
+  function applySettle() {
+    const amt = Number(settleAmount) || 0;
+    if (amt <= 0) return;
+    setCustomers((prev) => prev.map((c) => c.id === settleId ? { ...c, due: Math.max(0, (Number(c.due) || 0) - amt) } : c));
+    setToast("পরিশোধ যোগ করা হয়েছে"); setSettleId(null); setSettleAmount("");
+  }
+
+  return (
+    <div className="min-h-screen w-full" style={{ background: "#F3ECDD" }}>
+      <header style={{ background: "#1B2A4A" }} className="text-white px-5 pt-6 pb-8 rounded-b-3xl shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs tracking-widest uppercase" style={{ color: "#E8A33D" }}>খাতা ডিজিটাল</p>
+            <h1 className="display-font text-2xl font-bold mt-1">দোকান ম্যানেজমেন্ট</h1>
+            <p className="text-xs text-white/60 mt-1">{todayBn()}</p>
+          </div>
+          <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: "#E8A33D" }}>
+            <IReceipt size={24} color="#1B2A4A" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-6">
+          <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <IBanknote size={16} color="#7CC98F" />
+            <p className="text-[11px] text-white/70 mt-1">মোট বিক্রি</p>
+            <p className="font-bold text-sm mt-0.5">৳{taka(totals.totalSale)}</p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <IWallet size={16} color="#E8785A" />
+            <p className="text-[11px] text-white/70 mt-1">মোট বাকি</p>
+            <p className="font-bold text-sm mt-0.5">৳{taka(totals.totalDue)}</p>
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <IUsers size={16} color="#E8A33D" />
+            <p className="text-[11px] text-white/70 mt-1">গ্রাহক</p>
+            <p className="font-bold text-sm mt-0.5">{totals.count}</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="px-5 -mt-4">
+        <div className="ledger-card rounded-2xl p-1.5 flex items-center gap-2 pl-4">
+          <ISearch size={16} color="#8A7F66" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="নাম বা ফোন নম্বর দিয়ে খুঁজুন"
+            className="flex-1 bg-transparent outline-none text-sm py-2" style={{ color: "#2B2620" }} />
+        </div>
+        <div className="flex gap-2 mt-3">
+          {[{ k: "all", label: "সবাই" }, { k: "due", label: "বাকি আছে" }, { k: "clear", label: "পরিশোধ" }].map((f) => (
+            <button key={f.k} onClick={() => setFilter(f.k)}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold transition"
+              style={filter === f.k ? { background: "#1B2A4A", color: "#fff" } : { background: "#EDE3CB", color: "#5C5340" }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <main className="px-5 mt-4 pb-28 space-y-3">
+        {loaded && filtered.length === 0 && (
+          <div className="ledger-card rounded-2xl p-8 text-center mt-6">
+            <p className="display-font text-lg font-semibold" style={{ color: "#1B2A4A" }}>এখনো কোনো এন্ট্রি নেই</p>
+            <p className="text-sm mt-1" style={{ color: "#8A7F66" }}>নিচের + বোতাম চেপে প্রথম গ্রাহক যোগ করুন</p>
+          </div>
+        )}
+        {filtered.map((c) => (
+          <div key={c.id} className="ledger-card rounded-2xl p-4 pl-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-bold text-base" style={{ color: "#2B2620" }}>{c.name}</h3>
+                {c.phone && (
+                  <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "#8A7F66" }}>
+                    <IPhone size={11} /> {c.phone}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={() => openEditForm(c)} className="p-1.5 rounded-lg" style={{ background: "#F3ECDD" }}>
+                  <IPencil size={14} color="#5C5340" />
+                </button>
+                <button onClick={() => setConfirmDeleteId(c.id)} className="p-1.5 rounded-lg" style={{ background: "#FBE7E1" }}>
+                  <ITrash size={14} color="#C0472C" />
+                </button>
+              </div>
+            </div>
+            <div className="stitch my-3 rounded" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px]" style={{ color: "#8A7F66" }}>বিক্রি</p>
+                <p className="font-bold text-sm" style={{ color: "#3C8A5C" }}>৳{taka(c.sale)}</p>
+              </div>
+              <div>
+                <p className="text-[11px]" style={{ color: "#8A7F66" }}>বাকি</p>
+                <p className="font-bold text-sm" style={{ color: Number(c.due) > 0 ? "#C0472C" : "#3C8A5C" }}>৳{taka(c.due)}</p>
+              </div>
+              {Number(c.due) > 0 ? (
+                <button onClick={() => openSettle(c)} className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1" style={{ background: "#E8A33D", color: "#1B2A4A" }}>
+                  <IWallet size={12} /> পরিশোধ
+                </button>
+              ) : (
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1" style={{ background: "#E4F3E8", color: "#3C8A5C" }}>
+                  <IBadgeCheck size={12} /> ক্লিয়ার
+                </span>
+              )}
+            </div>
+            {c.note && <p className="text-xs mt-2 italic" style={{ color: "#8A7F66" }}>{c.note}</p>}
+          </div>
+        ))}
+      </main>
+
+      <button onClick={openAddForm} className="fixed bottom-6 right-6 h-14 w-14 rounded-full flex items-center justify-center shadow-xl" style={{ background: "#E8A33D" }}>
+        <IPlus size={26} color="#1B2A4A" />
+      </button>
+
+      {showForm && (
+        <div className="fixed inset-0 z-20 flex items-end justify-center" style={{ background: "rgba(27,42,74,0.45)" }} onClick={() => setShowForm(false)}>
+          <div className="w-full max-w-md rounded-t-3xl p-5 pb-8" style={{ background: "#FFFDF7" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="display-font text-lg font-bold" style={{ color: "#1B2A4A" }}>{editingId ? "তথ্য সম্পাদনা" : "নতুন গ্রাহক"}</h2>
+              <button onClick={() => setShowForm(false)}><IX size={20} color="#8A7F66" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold" style={{ color: "#5C5340" }}>নাম *</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="গ্রাহকের নাম লিখুন" className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm outline-none border" style={{ borderColor: "#E4D9BE", color: "#2B2620" }} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold" style={{ color: "#5C5340" }}>ফোন নম্বর</label>
+                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="০১XXXXXXXXX" className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm outline-none border" style={{ borderColor: "#E4D9BE", color: "#2B2620" }} />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold" style={{ color: "#5C5340" }}>বিক্রি (৳)</label>
+                  <input type="number" value={form.sale} onChange={(e) => setForm({ ...form, sale: e.target.value })}
+                    placeholder="০" className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm outline-none border" style={{ borderColor: "#E4D9BE", color: "#2B2620" }} />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-semibold" style={{ color: "#5C5340" }}>বাকি (৳)</label>
+                  <input type="number" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })}
+                    placeholder="০" className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm outline-none border" style={{ borderColor: "#E4D9BE", color: "#2B2620" }} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold" style={{ color: "#5C5340" }}>নোট (ঐচ্ছিক)</label>
+                <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
+                  placeholder="যেমনঃ চাল, ডাল, তেল" className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm outline-none border" style={{ borderColor: "#E4D9BE", color: "#2B2620" }} />
+              </div>
+            </div>
+            <button onClick={saveForm} disabled={!form.name.trim()} className="w-full mt-5 py-3 rounded-xl font-bold text-sm disabled:opacity-40" style={{ background: "#1B2A4A", color: "#fff" }}>
+              {editingId ? "হালনাগাদ করুন" : "সংরক্ষণ করুন"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {settleId && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center px-6" style={{ background: "rgba(27,42,74,0.45)" }} onClick={() => setSettleId(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: "#FFFDF7" }} onClick={(e) => e.stopPropagation()}>
+            <h2 className="display-font text-lg font-bold" style={{ color: "#1B2A4A" }}>বাকি পরিশোধ</h2>
+            <p className="text-xs mt-1" style={{ color: "#8A7F66" }}>কত টাকা জমা দিলেন লিখুন</p>
+            <input type="number" autoFocus value={settleAmount} onChange={(e) => setSettleAmount(e.target.value)}
+              placeholder="৳ পরিমাণ" className="w-full mt-3 rounded-xl px-3 py-2.5 text-sm outline-none border" style={{ borderColor: "#E4D9BE", color: "#2B2620" }} />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setSettleId(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: "#EDE3CB", color: "#5C5340" }}>বাতিল</button>
+              <button onClick={applySettle} className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1" style={{ background: "#E8A33D", color: "#1B2A4A" }}>
+                <ICheck size={16} /> জমা করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center px-6" style={{ background: "rgba(27,42,74,0.45)" }} onClick={() => setConfirmDeleteId(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: "#FFFDF7" }} onClick={(e) => e.stopPropagation()}>
+            <h2 className="display-font text-lg font-bold" style={{ color: "#C0472C" }}>এন্ট্রি মুছবেন?</h2>
+            <p className="text-xs mt-1" style={{ color: "#8A7F66" }}>এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না</p>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: "#EDE3CB", color: "#5C5340" }}>বাতিল</button>
+              <button onClick={() => deleteCustomer(confirmDeleteId)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: "#C0472C" }}>মুছে ফেলুন</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-xs font-semibold text-white shadow-lg z-30" style={{ background: "#1B2A4A" }}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<DokanManagement />);
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
